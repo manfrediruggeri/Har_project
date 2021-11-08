@@ -1,0 +1,120 @@
+---
+title: "Practical Machine Learning Project - Human Activity Recognition"
+author: "Manfredi Ruggeri"
+date: "5/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+   
+  
+### Summary  
+
+In the last years a large amount of data about personal activity was collected by wereable sensors; analyzing resulting datasets can be useful in order to classify not only the type of executed movement but also the quality of performance.  
+This project has the purpose of developing a machine learning algorithm to predict how (well) a specific activity was executed.  
+
+Used dataset is from:  
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.  
+
+### Getting and cleaning Data  
+
+Load Libraries  
+```{r message=FALSE, warning=FALSE}
+library(caret)
+library(ggplot2)
+library(rattle)
+```
+  
+  
+Load Dataset  
+```{r}
+df <- read.csv("pml-training.csv", na.strings = c("NA","","#DIV/0!"))
+valid <- read.csv("pml-testing.csv", na.strings = c("NA","","#DIV/0!"))
+dim(df)
+```
+  
+In some variables we can see a huge presence of NA values (more than 90%) so we proceed to delete them; furthermore we delete those variables that refer to quantities we are not interested in.  
+
+```{r}
+df <- df[, -c(1:7)]
+tb <- apply(df, 2, function(x) sum(is.na(x)/dim(df)[1])> 0.9)
+df <- df[, tb == FALSE]
+dim(df)
+```
+  
+### Building Machine Learning Models   
+
+Splitting dataset in train and test  
+```{r}
+inTrain = createDataPartition(df$classe, p = 3/4, list=FALSE)
+training = df[ inTrain,]
+testing = df[-inTrain,]
+set.seed(7373)
+```
+  
+The variable we are interested in is classe  
+```{r}
+table(training$classe)
+```
+  
+we can see that classe has only five characters, representing the quality of executed movement. It seems reasonable to use a classification algorithm like decision tree and according to results, perform other and more sophisticated algorithms.  
+
+
+**Decision Tree Model**   
+```{r}
+set.seed(7373)
+treeModel <- train(classe ~ . , method='rpart', data = training)
+fancyRpartPlot(treeModel$finalModel)
+```
+```{r}
+testing$classe <- as.factor(testing$classe)
+treeModelPredict <- predict(treeModel, newdata = testing)
+confMatrixTreeModel <- confusionMatrix(treeModelPredict, testing$classe)
+print(confMatrixTreeModel$table)
+print(confMatrixTreeModel$overall[1])
+```
+Unfortunately, an accuracy equals to 49% isn't enough  
+  
+**Generalized Boosted Model**  
+    
+```{r}
+gbmModel  <- train(classe ~ ., data = training, method = "gbm", verbose=FALSE)
+gbmPredict <- predict(gbmModel, newdata = testing)
+confMatrixGbmModel <- confusionMatrix(gbmPredict, testing$classe)
+print(confMatrixGbmModel)
+# print(confMatrixGbmModel$overall[1])
+```
+  
+With generalized boosted method we get:
+```{r}
+print(confMatrixGbmModel$overall[1])
+```
+a very good value.  
+
+**Random Forest Model**   
+```{r}
+rfModel <- train(classe ~ ., data = training, method = "rf", verbose = FALSE)
+print(rfModel$finalModel)
+rfPredict <- predict(rfModel, newdata = testing)
+confMatrixRf <- confusionMatrix(rfPredict, testing$classe)
+print(confMatrixRf)   
+```
+After a very expensive computation, with Random Forest we achieve an accuracy of:  
+```{r}
+print(confMatrixRf$overall[1])
+```
+We choose Random Forest to predict validation dataset.  
+```{r}
+predictValid <- predict(rfModel, newdata = valid)
+print(predictValid)
+```
+### Conclusions   
+In this example, machine learning based on random forest algorithm achieved the best accuracy; although it was computationally expensive in terms of time and resources, it could optimistically achieve a high precise model in order to predict how (well) any physical activity is performed.
+
+
+
+
+
+
